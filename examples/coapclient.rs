@@ -37,11 +37,11 @@ fn main() {
     // init hacspec structs for R's public static DH key
     let g_r = BytesP256ElemLen::from_hex(G_R);
 
-    let (state, message_1, message_1_len) = prepare_message_1(state, &C_I);
+    let (state, message_1) = prepare_message_1(state, &C_I);
     // Send Message 1 over CoAP and convert the response to byte
     let mut message_1_vec = Vec::new();
     message_1_vec.push(0xf5 as u8);
-    for i in 0..message_1_len {
+    for i in 0..message_1.len() {
         message_1_vec.push(message_1[i].declassify());
     }
 
