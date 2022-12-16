@@ -9,6 +9,7 @@ members = [
   "crypto/edhoc-crypto-psa",
   "examples/coap",
   "examples/edhoc-rs-no_std",
+  "examples/edhoc-rs-cc2538",
 ]
 
 # reduced "default-members", should include only packages that can be built and
