@@ -31,6 +31,7 @@ pub struct State(
 
 pub fn edhoc_exporter(
     state: State,
+    crypto: &CryptoProvider,
     label: U8,
     context: &BytesMaxContextBuffer,
     context_len: usize,
@@ -53,7 +54,7 @@ pub fn edhoc_exporter(
     let mut error = EDHOCError::UnknownError;
 
     if current_state == EDHOCState::Completed {
-        output = edhoc_kdf(&prk_exporter, label, context, context_len, length);
+        output = edhoc_kdf(crypto, &prk_exporter, label, context, context_len, length);
         error = EDHOCError::Success;
     } else {
         error = EDHOCError::WrongState;
@@ -62,7 +63,11 @@ pub fn edhoc_exporter(
     (error, state, output)
 }
 
-pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHOCError, State) {
+pub fn r_process_message_1(
+    mut state: State,
+    crypto: &CryptoProvider,
+    message_1: &BytesMessage1,
+) -> (EDHOCError, State) {
     let State(
         mut current_state,
         _y,
@@ -91,7 +96,7 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
                 // TODO we do not support EAD for now
 
                 // hash message_1 and save the hash to the state to avoid saving the whole message
-                h_message_1 = sha256_digest(
+                h_message_1 = crypto.sha256_digest(
                     &BytesMaxBuffer::from_slice(message_1, 0, message_1.len()),
                     message_1.len(),
                 );
@@ -126,6 +131,7 @@ pub fn r_process_message_1(mut state: State, message_1: &BytesMessage1) -> (EDHO
 
 pub fn r_prepare_message_2(
     mut state: State,
+    crypto: &CryptoProvider,
     id_cred_r: &BytesIdCred,
     cred_r: &BytesMaxBuffer,
     cred_r_len: usize,
@@ -157,24 +163,25 @@ pub fn r_prepare_message_2(
         c_r = C_R;
 
         // compute TH_2
-        let th_2 = compute_th_2(&G_Y, c_r, &h_message_1);
+        let th_2 = compute_th_2(crypto, &G_Y, c_r, &h_message_1);
 
         // compute prk_3e2m
-        let prk_2e = compute_prk_2e(&Y, &g_x, &th_2);
-        let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
-        prk_3e2m = compute_prk_3e2m(&salt_3e2m, r, &g_x);
+        let prk_2e = compute_prk_2e(crypto, &Y, &g_x, &th_2);
+        let salt_3e2m = compute_salt_3e2m(crypto, &prk_2e, &th_2);
+        prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, r, &g_x);
 
         // compute MAC_2
-        let mac_2 = compute_mac_2(&prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
+        let mac_2 = compute_mac_2(crypto, &prk_3e2m, id_cred_r, cred_r, cred_r_len, &th_2);
 
         // compute ciphertext_2
         let plaintext_2 = encode_plaintext_2(id_cred_r, &mac_2, &BytesEad2::new());
 
         // step is actually from processing of message_3
         // but we do it here to avoid storing plaintext_2 in State
-        th_3 = compute_th_3(&th_2, &plaintext_2, cred_r, cred_r_len);
+        th_3 = compute_th_3(crypto, &th_2, &plaintext_2, cred_r, cred_r_len);
 
         let (ciphertext_2, ciphertext_2_len) = encrypt_decrypt_ciphertext_2(
+            crypto,
             &prk_2e,
             &th_2,
             &BytesCiphertext2::from_slice(&plaintext_2, 0, plaintext_2.len()),
@@ -211,6 +218,7 @@ pub fn r_prepare_message_2(
 // FIXME fetch ID_CRED_I and CRED_I based on kid
 pub fn r_process_message_3(
     mut state: State,
+    crypto: &CryptoProvider,
     message_3: &BytesMessage3,
     id_cred_i_expected: &BytesIdCred,
     cred_i_expected: &BytesMaxBuffer,
@@ -233,7 +241,7 @@ pub fn r_process_message_3(
     let mut error = EDHOCError::UnknownError;
 
     if current_state == EDHOCState::WaitMessage3 {
-        let (err, plaintext_3) = decrypt_message_3(&prk_3e2m, &th_3, message_3);
+        let (err, plaintext_3) = decrypt_message_3(crypto, &prk_3e2m, &th_3, message_3);
 
         if err == EDHOCError::Success {
             let (kid, mac_3) = decode_plaintext_3(&plaintext_3);
@@ -241,12 +249,13 @@ pub fn r_process_message_3(
             // compare the kid received with the kid expected in id_cred_i
             if kid.declassify() == id_cred_i_expected[id_cred_i_expected.len() - 1].declassify() {
                 // compute salt_4e3m
-                let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+                let salt_4e3m = compute_salt_4e3m(crypto, &prk_3e2m, &th_3);
                 // TODO compute prk_4e3m
-                prk_4e3m = compute_prk_4e3m(&salt_4e3m, &y, g_i);
+                prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, &y, g_i);
 
                 // compute mac_3
                 let expected_mac_3 = compute_mac_3(
+                    crypto,
                     &prk_4e3m,
                     &th_3,
                     id_cred_i_expected,
@@ -257,11 +266,13 @@ pub fn r_process_message_3(
                 // verify mac_3
                 if mac_3.declassify_eq(&expected_mac_3) {
                     error = EDHOCError::Success;
-                    let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i_expected, cred_i_len);
+                    let th_4 =
+                        compute_th_4(crypto, &th_3, &plaintext_3, cred_i_expected, cred_i_len);
 
                     // compute prk_out
                     // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
                     let prk_out_buf = edhoc_kdf(
+                        crypto,
                         &prk_4e3m,
                         U8(7 as u8),
                         &BytesMaxContextBuffer::from_slice(&th_4, 0, th_4.len()),
@@ -273,6 +284,7 @@ pub fn r_process_message_3(
                     // compute prk_exporter from prk_out
                     // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
                     let prk_exporter_buf = edhoc_kdf(
+                        crypto,
                         &prk_out,
                         U8(10 as u8),
                         &BytesMaxContextBuffer::new(),
@@ -315,7 +327,10 @@ pub fn r_process_message_3(
 }
 
 // must hold MESSAGE_1_LEN
-pub fn i_prepare_message_1(mut state: State) -> (EDHOCError, State, BytesMessage1) {
+pub fn i_prepare_message_1(
+    mut state: State,
+    crypto: &CryptoProvider,
+) -> (EDHOCError, State, BytesMessage1) {
     let State(
         mut current_state,
         mut x,
@@ -348,7 +363,7 @@ pub fn i_prepare_message_1(mut state: State) -> (EDHOCError, State, BytesMessage
         message_1 = encode_message_1(U8(EDHOC_METHOD), &selected_suites, &g_x, c_i);
 
         // hash message_1 here to avoid saving the whole message in the state
-        h_message_1 = sha256_digest(
+        h_message_1 = crypto.sha256_digest(
             &BytesMaxBuffer::from_slice(&message_1, 0, message_1.len()),
             message_1.len(),
         );
@@ -378,6 +393,7 @@ pub fn i_prepare_message_1(mut state: State) -> (EDHOCError, State, BytesMessage
 // returns c_r
 pub fn i_process_message_2(
     mut state: State,
+    crypto: &CryptoProvider,
     message_2: &BytesMessage2,
     id_cred_r_expected: &BytesIdCred,
     cred_r_expected: &BytesMaxBuffer,
@@ -407,24 +423,25 @@ pub fn i_process_message_2(
         let (g_y, ciphertext_2, c_r_2) = parse_message_2(message_2);
         c_r = c_r_2;
 
-        let th_2 = compute_th_2(&g_y, c_r, &h_message_1);
+        let th_2 = compute_th_2(crypto, &g_y, c_r, &h_message_1);
 
         // compute prk_2e
-        let prk_2e = compute_prk_2e(&x, &g_y, &th_2);
+        let prk_2e = compute_prk_2e(crypto, &x, &g_y, &th_2);
 
         let (plaintext_2, plaintext_2_len) =
-            encrypt_decrypt_ciphertext_2(&prk_2e, &th_2, &ciphertext_2);
+            encrypt_decrypt_ciphertext_2(crypto, &prk_2e, &th_2, &ciphertext_2);
 
         // decode plaintext_2
         let (kid, mac_2, _ead_2) = decode_plaintext_2(&plaintext_2, plaintext_2_len);
 
         if kid.declassify() == id_cred_r_expected[id_cred_r_expected.len() - 1].declassify() {
             // verify mac_2
-            let salt_3e2m = compute_salt_3e2m(&prk_2e, &th_2);
+            let salt_3e2m = compute_salt_3e2m(crypto, &prk_2e, &th_2);
 
-            prk_3e2m = compute_prk_3e2m(&salt_3e2m, &x, g_r);
+            prk_3e2m = compute_prk_3e2m(crypto, &salt_3e2m, &x, g_r);
 
             let expected_mac_2 = compute_mac_2(
+                crypto,
                 &prk_3e2m,
                 id_cred_r_expected,
                 cred_r_expected,
@@ -436,6 +453,7 @@ pub fn i_process_message_2(
                 // step is actually from processing of message_3
                 // but we do it here to avoid storing plaintext_2 in State
                 th_3 = compute_th_3(
+                    crypto,
                     &th_2,
                     &BytesPlaintext2::from_slice(&plaintext_2, 0, plaintext_2_len),
                     cred_r_expected,
@@ -443,9 +461,9 @@ pub fn i_process_message_2(
                 );
                 // message 3 processing
 
-                let salt_4e3m = compute_salt_4e3m(&prk_3e2m, &th_3);
+                let salt_4e3m = compute_salt_4e3m(crypto, &prk_3e2m, &th_3);
 
-                prk_4e3m = compute_prk_4e3m(&salt_4e3m, i, &g_y);
+                prk_4e3m = compute_prk_4e3m(crypto, &salt_4e3m, i, &g_y);
 
                 error = EDHOCError::Success;
                 current_state = EDHOCState::ProcessedMessage2;
@@ -479,6 +497,7 @@ pub fn i_process_message_2(
 // message_3 must hold MESSAGE_3_LEN
 pub fn i_prepare_message_3(
     mut state: State,
+    crypto: &CryptoProvider,
     id_cred_i: &BytesIdCred,
     cred_i: &BytesMaxBuffer,
     cred_i_len: usize,
@@ -500,15 +519,16 @@ pub fn i_prepare_message_3(
     let mut message_3 = BytesMessage3::new();
 
     if current_state == EDHOCState::ProcessedMessage2 {
-        let mac_3 = compute_mac_3(&prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
+        let mac_3 = compute_mac_3(crypto, &prk_4e3m, &th_3, id_cred_i, cred_i, cred_i_len);
         let plaintext_3 = encode_plaintext_3(id_cred_i, &mac_3);
-        message_3 = encrypt_message_3(&prk_3e2m, &th_3, &plaintext_3);
+        message_3 = encrypt_message_3(crypto, &prk_3e2m, &th_3, &plaintext_3);
 
-        let th_4 = compute_th_4(&th_3, &plaintext_3, cred_i, cred_i_len);
+        let th_4 = compute_th_4(crypto, &th_3, &plaintext_3, cred_i, cred_i_len);
 
         // compute prk_out
         // PRK_out = EDHOC-KDF( PRK_4e3m, 7, TH_4, hash_length )
         let prk_out_buf = edhoc_kdf(
+            crypto,
             &prk_4e3m,
             U8(7 as u8),
             &BytesMaxContextBuffer::from_slice(&th_4, 0, th_4.len()),
@@ -520,6 +540,7 @@ pub fn i_prepare_message_3(
         // compute prk_exporter from prk_out
         // PRK_exporter  = EDHOC-KDF( PRK_out, 10, h'', hash_length )
         let prk_exporter_buf = edhoc_kdf(
+            crypto,
             &prk_out,
             U8(10 as u8),
             &BytesMaxContextBuffer::new(),
@@ -638,7 +659,12 @@ fn encode_message_2(
     output
 }
 
-fn compute_th_2(g_y: &BytesP256ElemLen, c_r: U8, h_message_1: &BytesHashLen) -> BytesHashLen {
+fn compute_th_2(
+    crypto: &CryptoProvider,
+    g_y: &BytesP256ElemLen,
+    c_r: U8,
+    h_message_1: &BytesHashLen,
+) -> BytesHashLen {
     let mut message = BytesMaxBuffer::new();
     message[0] = U8(CBOR_BYTE_STRING);
     message[1] = U8(P256_ELEM_LEN as u8);
@@ -650,12 +676,13 @@ fn compute_th_2(g_y: &BytesP256ElemLen, c_r: U8, h_message_1: &BytesHashLen) -> 
 
     let len = 5 + P256_ELEM_LEN + SHA256_DIGEST_LEN;
 
-    let th_2 = sha256_digest(&message, len);
+    let th_2 = crypto.sha256_digest(&message, len);
 
     th_2
 }
 
 fn compute_th_3(
+    crypto: &CryptoProvider,
     th_2: &BytesHashLen,
     plaintext_2: &BytesPlaintext2,
     cred_r: &BytesMaxBuffer,
@@ -669,12 +696,13 @@ fn compute_th_3(
     message = message.update(2 + th_2.len(), plaintext_2);
     message = message.update_slice(2 + th_2.len() + plaintext_2.len(), cred_r, 0, cred_r_len);
 
-    let output = sha256_digest(&message, th_2.len() + 2 + plaintext_2.len() + cred_r_len);
+    let output = crypto.sha256_digest(&message, th_2.len() + 2 + plaintext_2.len() + cred_r_len);
 
     output
 }
 
 fn compute_th_4(
+    crypto: &CryptoProvider,
     th_3: &BytesHashLen,
     plaintext_3: &BytesPlaintext3,
     cred_i: &BytesMaxBuffer,
@@ -688,12 +716,13 @@ fn compute_th_4(
     message = message.update(2 + th_3.len(), plaintext_3);
     message = message.update_slice(2 + th_3.len() + plaintext_3.len(), cred_i, 0, cred_i_len);
 
-    let output = sha256_digest(&message, th_3.len() + 2 + plaintext_3.len() + cred_i_len);
+    let output = crypto.sha256_digest(&message, th_3.len() + 2 + plaintext_3.len() + cred_i_len);
 
     output
 }
 
 fn edhoc_kdf(
+    crypto: &CryptoProvider,
     prk: &BytesHashLen,
     label: U8,
     context: &BytesMaxContextBuffer,
@@ -724,7 +753,7 @@ fn edhoc_kdf(
         info_len = info_len + 2;
     }
 
-    let output = hkdf_expand(prk, &info, info_len, length);
+    let output = crypto.hkdf_expand(prk, &info, info_len, length);
 
     output
 }
@@ -774,12 +803,14 @@ fn encode_enc_structure(th_3: &BytesHashLen) -> BytesEncStructureLen {
 }
 
 fn compute_k_3_iv_3(
+    crypto: &CryptoProvider,
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
 ) -> (BytesCcmKeyLen, BytesCcmIvLen) {
     // K_3 = EDHOC-KDF( PRK_3e2m, 3, TH_3,      key_length )
     let k_3 = BytesCcmKeyLen::from_slice(
         &edhoc_kdf(
+            crypto,
             prk_3e2m,
             U8(3 as u8),
             &BytesMaxContextBuffer::from_slice(th_3, 0, th_3.len()),
@@ -792,6 +823,7 @@ fn compute_k_3_iv_3(
     // IV_3 = EDHOC-KDF( PRK_3e2m, 4, TH_3,      iv_length )
     let iv_3 = BytesCcmIvLen::from_slice(
         &edhoc_kdf(
+            crypto,
             prk_3e2m,
             U8(4 as u8),
             &BytesMaxContextBuffer::from_slice(th_3, 0, th_3.len()),
@@ -808,6 +840,7 @@ fn compute_k_3_iv_3(
 // calculates ciphertext_3 wrapped in a cbor byte string
 // output must hold MESSAGE_3_LEN
 fn encrypt_message_3(
+    crypto: &CryptoProvider,
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
     plaintext_3: &BytesPlaintext3,
@@ -817,17 +850,18 @@ fn encrypt_message_3(
 
     let enc_structure = encode_enc_structure(th_3);
 
-    let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
+    let (k_3, iv_3) = compute_k_3_iv_3(crypto, prk_3e2m, th_3);
 
     output = output.update(
         1,
-        &aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3),
+        &crypto.aes_ccm_encrypt_tag_8(&k_3, &iv_3, &enc_structure, plaintext_3),
     );
 
     output
 }
 
 fn decrypt_message_3(
+    crypto: &CryptoProvider,
     prk_3e2m: &BytesHashLen,
     th_3: &BytesHashLen,
     message_3: &BytesMessage3,
@@ -842,11 +876,11 @@ fn decrypt_message_3(
     if len.declassify() as usize == CIPHERTEXT_3_LEN {
         let ciphertext_3 = BytesCiphertext3::from_slice(message_3, 1, CIPHERTEXT_3_LEN);
 
-        let (k_3, iv_3) = compute_k_3_iv_3(prk_3e2m, th_3);
+        let (k_3, iv_3) = compute_k_3_iv_3(crypto, prk_3e2m, th_3);
 
         let enc_structure = encode_enc_structure(th_3);
 
-        let (err, p3) = aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
+        let (err, p3) = crypto.aes_ccm_decrypt_tag_8(&k_3, &iv_3, &enc_structure, &ciphertext_3);
         error = err;
         plaintext_3 = plaintext_3.update(0, &p3);
     } else {
@@ -877,6 +911,7 @@ fn encode_kdf_context(
 }
 
 fn compute_mac_3(
+    crypto: &CryptoProvider,
     prk_4e3m: &BytesHashLen,
     th_3: &BytesHashLen,
     id_cred_i: &BytesIdCred,
@@ -888,6 +923,7 @@ fn compute_mac_3(
 
     // compute mac_3
     let output_buf = edhoc_kdf(
+        crypto,
         prk_4e3m,
         U8(6 as u8), // registered label for "MAC_3"
         &context,
@@ -901,6 +937,7 @@ fn compute_mac_3(
 }
 
 fn compute_mac_2(
+    crypto: &CryptoProvider,
     prk_3e2m: &BytesHashLen,
     id_cred_r: &BytesIdCred,
     cred_r: &BytesMaxBuffer,
@@ -914,7 +951,14 @@ fn compute_mac_2(
     let mut mac_2 = BytesMac2::new();
     mac_2 = mac_2.update_slice(
         0,
-        &edhoc_kdf(prk_3e2m, U8(2 as u8), &context, context_len, MAC_LENGTH_2),
+        &edhoc_kdf(
+            crypto,
+            prk_3e2m,
+            U8(2 as u8),
+            &context,
+            context_len,
+            MAC_LENGTH_2,
+        ),
         0,
         mac_2.len(),
     );
@@ -951,6 +995,7 @@ fn encode_plaintext_2(
 }
 
 fn encrypt_decrypt_ciphertext_2(
+    crypto: &CryptoProvider,
     prk_2e: &BytesHashLen,
     th_2: &BytesHashLen,
     ciphertext_2: &BytesCiphertext2,
@@ -961,6 +1006,7 @@ fn encrypt_decrypt_ciphertext_2(
 
     // KEYSTREAM_2 = EDHOC-KDF( PRK_2e,   0, TH_2,      plaintext_length )
     let keystream_2 = edhoc_kdf(
+        crypto,
         prk_2e,
         U8(0 as u8),
         &th_2_context,
@@ -977,10 +1023,15 @@ fn encrypt_decrypt_ciphertext_2(
     (plaintext_2, CIPHERTEXT_2_LEN)
 }
 
-fn compute_salt_4e3m(prk_3e2m: &BytesHashLen, th_3: &BytesHashLen) -> BytesHashLen {
+fn compute_salt_4e3m(
+    crypto: &CryptoProvider,
+    prk_3e2m: &BytesHashLen,
+    th_3: &BytesHashLen,
+) -> BytesHashLen {
     let mut th_3_context = BytesMaxContextBuffer::new();
     th_3_context = th_3_context.update(0, th_3);
     let salt_4e3m_buf = edhoc_kdf(
+        crypto,
         prk_3e2m,
         U8(5 as u8),
         &th_3_context,
@@ -994,22 +1045,28 @@ fn compute_salt_4e3m(prk_3e2m: &BytesHashLen, th_3: &BytesHashLen) -> BytesHashL
 }
 
 fn compute_prk_4e3m(
+    crypto: &CryptoProvider,
     salt_4e3m: &BytesHashLen,
     i: &BytesP256ElemLen,
     g_y: &BytesP256ElemLen,
 ) -> BytesHashLen {
     // compute g_rx from static R's public key and private ephemeral key
-    let g_iy = p256_ecdh(i, g_y);
-    let prk_4e3m = hkdf_extract(salt_4e3m, &g_iy);
+    let g_iy = crypto.p256_ecdh(i, g_y);
+    let prk_4e3m = crypto.hkdf_extract(salt_4e3m, &g_iy);
 
     prk_4e3m
 }
 
-fn compute_salt_3e2m(prk_2e: &BytesHashLen, th_2: &BytesHashLen) -> BytesHashLen {
+fn compute_salt_3e2m(
+    crypto: &CryptoProvider,
+    prk_2e: &BytesHashLen,
+    th_2: &BytesHashLen,
+) -> BytesHashLen {
     let mut th_2_context = BytesMaxContextBuffer::new();
     th_2_context = th_2_context.update(0, th_2);
 
     let salt_3e2m_buf = edhoc_kdf(
+        crypto,
         prk_2e,
         U8(1 as u8),
         &th_2_context,
@@ -1024,26 +1081,28 @@ fn compute_salt_3e2m(prk_2e: &BytesHashLen, th_2: &BytesHashLen) -> BytesHashLen
 }
 
 fn compute_prk_3e2m(
+    crypto: &CryptoProvider,
     salt_3e2m: &BytesHashLen,
     x: &BytesP256ElemLen,
     g_r: &BytesP256ElemLen,
 ) -> BytesHashLen {
     // compute g_rx from static R's public key and private ephemeral key
-    let g_rx = p256_ecdh(x, g_r);
-    let prk_3e2m = hkdf_extract(salt_3e2m, &g_rx);
+    let g_rx = crypto.p256_ecdh(x, g_r);
+    let prk_3e2m = crypto.hkdf_extract(salt_3e2m, &g_rx);
 
     prk_3e2m
 }
 
 fn compute_prk_2e(
+    crypto: &CryptoProvider,
     x: &BytesP256ElemLen,
     g_y: &BytesP256ElemLen,
     th_2: &BytesHashLen,
 ) -> BytesHashLen {
     // compute the shared secret
-    let g_xy = p256_ecdh(x, g_y);
+    let g_xy = crypto.p256_ecdh(x, g_y);
     // compute prk_2e as PRK_2e = HMAC-SHA-256( salt, G_XY )
-    let prk_2e = hkdf_extract(th_2, &g_xy);
+    let prk_2e = crypto.hkdf_extract(th_2, &g_xy);
 
     prk_2e
 }

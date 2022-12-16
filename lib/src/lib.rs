@@ -6,8 +6,8 @@
     feature = "hacspec-psa"
 ))]
 pub use {
-    edhoc_consts::*, edhoc_hacspec::State as EdhocState,
-    hacspec::HacspecEdhocInitiator as EdhocInitiator,
+    edhoc_consts::*, edhoc_crypto::CryptoProvider as EdhocCryptoProvider,
+    edhoc_hacspec::State as EdhocState, hacspec::HacspecEdhocInitiator as EdhocInitiator,
     hacspec::HacspecEdhocResponder as EdhocResponder,
 };
 
@@ -30,34 +30,38 @@ use edhoc::*;
 ))]
 mod hacspec {
     use edhoc_consts::*;
+    use edhoc_crypto::*;
     use edhoc_hacspec::*;
     use hacspec_lib::*;
 
-    #[derive(Default, Copy, Clone, Debug)]
+    #[derive(Copy, Clone)]
     pub struct HacspecEdhocInitiator<'a> {
-        state: State,       // opaque state
-        i: &'a str,         // private authentication key of I
-        g_r: &'a str,       // public authentication key of R
-        id_cred_i: &'a str, // identifier of I's credential
-        cred_i: &'a str,    // I's full credential
-        id_cred_r: &'a str, // identifier of R's credential
-        cred_r: &'a str,    // R's full credential
+        state: State,                   // opaque state
+        crypto: &'a CryptoProvider<'a>, // crypto provider object
+        i: &'a str,                     // private authentication key of I
+        g_r: &'a str,                   // public authentication key of R
+        id_cred_i: &'a str,             // identifier of I's credential
+        cred_i: &'a str,                // I's full credential
+        id_cred_r: &'a str,             // identifier of R's credential
+        cred_r: &'a str,                // R's full credential
     }
 
-    #[derive(Default, Copy, Clone, Debug)]
+    #[derive(Copy, Clone)]
     pub struct HacspecEdhocResponder<'a> {
-        state: State,       // opaque state
-        r: &'a str,         // private authentication key of R
-        g_i: &'a str,       // public authentication key of I
-        id_cred_i: &'a str, // identifier of I's credential
-        cred_i: &'a str,    // I's full credential
-        id_cred_r: &'a str, // identifier of R's credential
-        cred_r: &'a str,    // R's full credential
+        state: State,                   // opaque state
+        crypto: &'a CryptoProvider<'a>, // crypto provider object
+        r: &'a str,                     // private authentication key of R
+        g_i: &'a str,                   // public authentication key of I
+        id_cred_i: &'a str,             // identifier of I's credential
+        cred_i: &'a str,                // I's full credential
+        id_cred_r: &'a str,             // identifier of R's credential
+        cred_r: &'a str,                // R's full credential
     }
 
     impl<'a> HacspecEdhocResponder<'a> {
         pub fn new(
             state: State,
+            crypto: &'a CryptoProvider<'a>,
             r: &'a str,
             g_i: &'a str,
             id_cred_i: &'a str,
@@ -72,6 +76,7 @@ mod hacspec {
 
             HacspecEdhocResponder {
                 state: state,
+                crypto: crypto,
                 r: r,
                 g_i: g_i,
                 id_cred_i: id_cred_i,
@@ -87,6 +92,7 @@ mod hacspec {
         ) -> EDHOCError {
             let (error, state) = r_process_message_1(
                 self.state,
+                &self.crypto,
                 &BytesMessage1::from_public_slice(&message_1[..]),
             );
             self.state = state;
@@ -105,8 +111,14 @@ mod hacspec {
             // init hacspec structs for R's public static DH key
             let r = BytesP256ElemLen::from_hex(self.r);
 
-            let (error, state, message_2, c_r) =
-                r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r);
+            let (error, state, message_2, c_r) = r_prepare_message_2(
+                self.state,
+                &self.crypto,
+                &id_cred_r,
+                &cred_r,
+                cred_r_len,
+                &r,
+            );
             self.state = state;
 
             let mut message_2_native: [u8; MESSAGE_2_LEN] = [0; MESSAGE_2_LEN];
@@ -132,6 +144,7 @@ mod hacspec {
 
             let (error, state, prk_out) = r_process_message_3(
                 self.state,
+                &self.crypto,
                 &BytesMessage3::from_public_slice(&message_3[..]),
                 &id_cred_i,
                 &cred_i,
@@ -160,6 +173,7 @@ mod hacspec {
 
             let (error, state, output) = edhoc_exporter(
                 self.state,
+                &self.crypto,
                 U8(label),
                 &context_hacspec,
                 context.len(),
@@ -181,6 +195,7 @@ mod hacspec {
     impl<'a> HacspecEdhocInitiator<'a> {
         pub fn new(
             state: State,
+            crypto: &'a CryptoProvider<'a>,
             i: &'a str,
             g_r: &'a str,
             id_cred_i: &'a str,
@@ -195,6 +210,7 @@ mod hacspec {
 
             HacspecEdhocInitiator {
                 state: state,
+                crypto: crypto,
                 i: i,
                 g_r: g_r,
                 id_cred_i: id_cred_i,
@@ -207,7 +223,8 @@ mod hacspec {
         pub fn prepare_message_1(
             self: &mut HacspecEdhocInitiator<'a>,
         ) -> (EDHOCError, [u8; MESSAGE_1_LEN]) {
-            let (error, state, message_1) = edhoc_hacspec::i_prepare_message_1(self.state);
+            let (error, state, message_1) =
+                edhoc_hacspec::i_prepare_message_1(self.state, &self.crypto);
             self.state = state;
 
             // convert message_1 into native Rust array
@@ -242,6 +259,7 @@ mod hacspec {
 
             let (error, state, c_r, _id_cred_r) = edhoc_hacspec::i_process_message_2(
                 self.state,
+                &self.crypto,
                 &message_2_hacspec,
                 &id_cred_r,
                 &cred_r,
@@ -264,7 +282,7 @@ mod hacspec {
             let cred_i_len = self.cred_i.len() / 2;
 
             let (error, state, message_3, prk_out) =
-                i_prepare_message_3(self.state, &id_cred_i, &cred_i, cred_i_len);
+                i_prepare_message_3(self.state, &self.crypto, &id_cred_i, &cred_i, cred_i_len);
 
             self.state = state;
 
@@ -296,6 +314,7 @@ mod hacspec {
 
             let (error, state, output) = edhoc_exporter(
                 self.state,
+                &self.crypto,
                 U8(label),
                 &context_hacspec,
                 context.len(),

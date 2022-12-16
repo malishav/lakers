@@ -21,7 +21,7 @@ use cc2538_hal::crypto::aes_engine::keys::{AesKey, AesKeySize, AesKeys};
 use cc2538_hal::{crypto::*, sys_ctrl::*};
 use cc2538_pac as pac;
 
-use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocResponder, EdhocState};
+use edhoc_rs::{EDHOCError, EdhocCryptoProvider, EdhocInitiator, EdhocResponder, EdhocState};
 use hexlit::hex;
 
 #[entry]
@@ -69,16 +69,18 @@ fn inner_main() -> Result<(), &'static str> {
     sys_ctrl.reset_pka();
     sys_ctrl.clear_reset_pka();
 
-    let crypto = Crypto::new(&mut periph.AES, &mut periph.PKA);
+    let cc2538_crypto = Crypto::new(&mut periph.AES, &mut periph.PKA);
+    let edhoc_crypto = EdhocCryptoProvider::new(cc2538_crypto);
 
     rprintln!("Hello from CC2538");
 
-    test_handshake();
+    test_handshake(&edhoc_crypto);
 
-    fn test_handshake() {
+    fn test_handshake(crypto: &EdhocCryptoProvider) {
         let state_initiator: EdhocState = Default::default();
         let mut initiator = EdhocInitiator::new(
             state_initiator,
+            crypto,
             I,
             G_R,
             ID_CRED_I,
@@ -89,6 +91,7 @@ fn inner_main() -> Result<(), &'static str> {
         let state_responder: EdhocState = Default::default();
         let mut responder = EdhocResponder::new(
             state_responder,
+            crypto,
             R,
             G_I,
             ID_CRED_I,
