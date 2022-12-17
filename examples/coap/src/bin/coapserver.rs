@@ -15,6 +15,7 @@ fn main() {
     let socket = UdpSocket::bind("127.0.0.1:5683").unwrap();
 
     let mut edhoc_connections = Vec::new();
+    let crypto = EdhocCryptoProvider::new("");
 
     loop {
         let (size, src) = socket.recv_from(&mut buf).expect("Didn't receive data");
@@ -29,8 +30,9 @@ fn main() {
             // This is an EDHOC message
             if request.message.payload[0] == 0xf5 {
                 let state = EdhocState::default();
-                let mut responder =
-                    EdhocResponder::new(state, &R, &G_I, &ID_CRED_I, &CRED_I, &ID_CRED_R, &CRED_R);
+                let mut responder = EdhocResponder::new(
+                    state, &crypto, &R, &G_I, &ID_CRED_I, &CRED_I, &ID_CRED_R, &CRED_R,
+                );
 
                 let error = responder.process_message_1(
                     &request.message.payload[1..]

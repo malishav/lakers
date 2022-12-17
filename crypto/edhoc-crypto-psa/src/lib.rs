@@ -187,8 +187,7 @@ pub fn p256_ecdh(
     let my_key = key_management::import(attributes, None, &private_key.to_public_array()).unwrap();
     let mut output_buffer: [u8; P256_ELEM_LEN] = [0; P256_ELEM_LEN];
 
-    key_agreement::raw_key_agreement(alg, my_key, &peer_public_key, &mut output_buffer)
-        .unwrap();
+    key_agreement::raw_key_agreement(alg, my_key, &peer_public_key, &mut output_buffer).unwrap();
 
     let output = BytesP256ElemLen::from_public_slice(&output_buffer[..]);
 
