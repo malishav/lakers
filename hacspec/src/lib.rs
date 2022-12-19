@@ -1153,11 +1153,12 @@ mod tests {
 
     #[test]
     fn test_ecdh() {
+        let crypto = CryptoProvider::new("");
         let x_tv = BytesP256ElemLen::from_hex(X_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let g_xy_tv = BytesP256ElemLen::from_hex(G_XY_TV);
 
-        let g_xy = p256_ecdh(&x_tv, &g_y_tv);
+        let g_xy = crypto.p256_ecdh(&x_tv, &g_y_tv);
 
         assert_bytes_eq!(g_xy, g_xy_tv);
     }
@@ -1219,41 +1220,57 @@ mod tests {
 
     #[test]
     fn test_compute_th_2() {
+        let crypto = CryptoProvider::new("");
         let h_message_1_tv = BytesHashLen::from_hex(H_MESSAGE_1_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let c_r_tv = U8(C_R_TV);
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
 
-        let th_2 = compute_th_2(&g_y_tv, c_r_tv, &h_message_1_tv);
+        let th_2 = compute_th_2(&crypto, &g_y_tv, c_r_tv, &h_message_1_tv);
         assert_bytes_eq!(th_2, th_2_tv);
     }
 
     #[test]
     fn test_compute_th_3() {
+        let crypto = CryptoProvider::new("");
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_2_tv = BytesPlaintext2::from_hex(PLAINTEXT_2_TV);
         let mut cred_r_tv = BytesMaxBuffer::new();
         cred_r_tv = cred_r_tv.update(0, &ByteSeq::from_hex(CRED_R_TV));
 
-        let th_3 = compute_th_3(&th_2_tv, &plaintext_2_tv, &cred_r_tv, CRED_R_TV.len() / 2);
+        let th_3 = compute_th_3(
+            &crypto,
+            &th_2_tv,
+            &plaintext_2_tv,
+            &cred_r_tv,
+            CRED_R_TV.len() / 2,
+        );
         assert_bytes_eq!(th_3, th_3_tv);
     }
 
     #[test]
     fn test_compute_th_4() {
+        let crypto = CryptoProvider::new("");
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let th_4_tv = BytesHashLen::from_hex(TH_4_TV);
         let mut cred_i_tv = BytesMaxBuffer::new();
         cred_i_tv = cred_i_tv.update(0, &ByteSeq::from_hex(CRED_I_TV));
 
-        let th_4 = compute_th_4(&th_3_tv, &plaintext_3_tv, &cred_i_tv, CRED_I_TV.len() / 2);
+        let th_4 = compute_th_4(
+            &crypto,
+            &th_3_tv,
+            &plaintext_3_tv,
+            &cred_i_tv,
+            CRED_I_TV.len() / 2,
+        );
         assert_bytes_eq!(th_4, th_4_tv);
     }
 
     #[test]
     fn test_edhoc_kdf() {
+        let crypto = CryptoProvider::new("");
         let mut th_2_context_tv = BytesMaxContextBuffer::new();
         th_2_context_tv = th_2_context_tv.update(0, &ByteSeq::from_hex(TH_2_TV));
         let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
@@ -1261,6 +1278,7 @@ mod tests {
         const LEN_TV: usize = PLAINTEXT_2_LEN;
 
         let output = edhoc_kdf(
+            &crypto,
             &prk_2e_tv,
             U8(0),
             &th_2_context_tv,
@@ -1278,6 +1296,7 @@ mod tests {
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
         let output_2 = edhoc_kdf(
+            &crypto,
             &prk_3e2m_tv,
             U8(2), // length of "MAC_2"
             &context_info_mac_2,
@@ -1292,23 +1311,26 @@ mod tests {
 
     #[test]
     fn test_encrypt_message_3() {
+        let crypto = CryptoProvider::new("");
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
         let message_3_tv = BytesMessage3::from_hex(MESSAGE_3_TV);
 
-        let message_3 = encrypt_message_3(&prk_3e2m_tv, &th_3_tv, &plaintext_3_tv);
+        let message_3 = encrypt_message_3(&crypto, &prk_3e2m_tv, &th_3_tv, &plaintext_3_tv);
         assert_bytes_eq!(message_3, message_3_tv);
     }
 
     #[test]
     fn test_decrypt_message_3() {
+        let crypto = CryptoProvider::new("");
         let message_3_tv = BytesMessage3::from_hex(MESSAGE_3_TV);
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let plaintext_3_tv = BytesPlaintext3::from_hex(PLAINTEXT_3_TV);
 
-        let (error, plaintext_3) = decrypt_message_3(&prk_3e2m_tv, &th_3_tv, &message_3_tv);
+        let (error, plaintext_3) =
+            decrypt_message_3(&crypto, &prk_3e2m_tv, &th_3_tv, &message_3_tv);
 
         assert_eq!(error, EDHOCError::Success);
         assert_bytes_eq!(plaintext_3, plaintext_3_tv);
@@ -1316,6 +1338,7 @@ mod tests {
 
     #[test]
     fn test_compute_mac_3() {
+        let crypto = CryptoProvider::new("");
         let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4E3M_TV);
         let th_3_tv = BytesHashLen::from_hex(TH_3_TV);
         let id_cred_i_tv = BytesIdCred::from_hex(ID_CRED_I_TV);
@@ -1324,6 +1347,7 @@ mod tests {
         let mac_3_tv = BytesMac3::from_hex(MAC_3_TV);
 
         let mac_3 = compute_mac_3(
+            &crypto,
             &prk_4e3m_tv,
             &th_3_tv,
             &id_cred_i_tv,
@@ -1335,6 +1359,7 @@ mod tests {
 
     #[test]
     fn test_compute_and_verify_mac_2() {
+        let crypto = CryptoProvider::new("");
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
         let id_cred_r_tv = BytesIdCred::from_hex(ID_CRED_R_TV);
         let mut cred_r_tv = BytesMaxBuffer::new();
@@ -1343,6 +1368,7 @@ mod tests {
         let mac_2_tv = BytesMac2::from_hex(MAC_2_TV);
 
         let rcvd_mac_2 = compute_mac_2(
+            &crypto,
             &prk_3e2m_tv,
             &id_cred_r_tv,
             &cred_r_tv,
@@ -1380,6 +1406,7 @@ mod tests {
 
     #[test]
     fn test_encrypt_decrypt_ciphertext_2() {
+        let crypto = CryptoProvider::new("");
         let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let ciphertext_2_tv = BytesCiphertext2::from_hex(CIPHERTEXT_2_TV);
@@ -1387,7 +1414,7 @@ mod tests {
 
         // test decryption
         let (plaintext_2, plaintext_2_len) =
-            encrypt_decrypt_ciphertext_2(&prk_2e_tv, &th_2_tv, &ciphertext_2_tv);
+            encrypt_decrypt_ciphertext_2(&crypto, &prk_2e_tv, &th_2_tv, &ciphertext_2_tv);
 
         assert_eq!(plaintext_2_len, PLAINTEXT_2_LEN);
         for i in 0..PLAINTEXT_2_LEN {
@@ -1399,7 +1426,7 @@ mod tests {
 
         // test encryption
         let (ciphertext_2, ciphertext_2_len) =
-            encrypt_decrypt_ciphertext_2(&prk_2e_tv, &th_2_tv, &plaintext_2_tmp);
+            encrypt_decrypt_ciphertext_2(&crypto, &prk_2e_tv, &th_2_tv, &plaintext_2_tmp);
 
         assert_eq!(ciphertext_2_len, CIPHERTEXT_2_LEN);
         for i in 0..CIPHERTEXT_2_LEN {
@@ -1412,34 +1439,37 @@ mod tests {
 
     #[test]
     fn test_compute_prk_4e3m() {
+        let crypto = CryptoProvider::new("");
         let salt_4e3m_tv = BytesHashLen::from_hex(SALT_4E3M_TV);
         let i_tv = BytesP256ElemLen::from_hex(I_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let prk_4e3m_tv = BytesHashLen::from_hex(PRK_4E3M_TV);
 
-        let prk_4e3m = compute_prk_4e3m(&salt_4e3m_tv, &i_tv, &g_y_tv);
+        let prk_4e3m = compute_prk_4e3m(&crypto, &salt_4e3m_tv, &i_tv, &g_y_tv);
         assert_bytes_eq!(prk_4e3m, prk_4e3m_tv);
     }
 
     #[test]
     fn test_compute_prk_3e2m() {
+        let crypto = CryptoProvider::new("");
         let salt_3e2m_tv = BytesHashLen::from_hex(SALT_3E2M_TV);
         let x_tv = BytesP256ElemLen::from_hex(X_TV);
         let g_r_tv = BytesP256ElemLen::from_hex(G_R_TV);
         let prk_3e2m_tv = BytesHashLen::from_hex(PRK_3E2M_TV);
 
-        let prk_3e2m = compute_prk_3e2m(&salt_3e2m_tv, &x_tv, &g_r_tv);
+        let prk_3e2m = compute_prk_3e2m(&crypto, &salt_3e2m_tv, &x_tv, &g_r_tv);
         assert_bytes_eq!(prk_3e2m, prk_3e2m_tv);
     }
 
     #[test]
     fn test_compute_prk_2e() {
+        let crypto = CryptoProvider::new("");
         let x_tv = BytesP256ElemLen::from_hex(X_TV);
         let g_y_tv = BytesP256ElemLen::from_hex(G_Y_TV);
         let th_2_tv = BytesHashLen::from_hex(TH_2_TV);
         let prk_2e_tv = BytesHashLen::from_hex(PRK_2E_TV);
 
-        let prk_2e = compute_prk_2e(&x_tv, &g_y_tv, &th_2_tv);
+        let prk_2e = compute_prk_2e(&crypto, &x_tv, &g_y_tv, &th_2_tv);
         assert_bytes_eq!(prk_2e, prk_2e_tv);
     }
 

@@ -509,20 +509,25 @@ mod test {
     #[test]
     fn test_new_initiator() {
         let state: EdhocState = Default::default();
-        let _initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let crypto = EdhocCryptoProvider::new("");
+        let _initiator =
+            EdhocInitiator::new(state, &crypto, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
     }
 
     #[test]
     fn test_new_responder() {
         let state: EdhocState = Default::default();
-        let _responder = EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let crypto = EdhocCryptoProvider::new("");
+        let _responder =
+            EdhocResponder::new(state, &crypto, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
     }
 
     #[test]
     fn test_prepare_message_1() {
         let state: EdhocState = Default::default();
+        let crypto = EdhocCryptoProvider::new("");
         let mut initiator =
-            EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+            EdhocInitiator::new(state, &crypto, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
         let (error, message_1) = initiator.prepare_message_1();
         assert!(error == EDHOCError::Success);
@@ -532,8 +537,9 @@ mod test {
     #[test]
     fn test_process_message_1() {
         let state: EdhocState = Default::default();
+        let crypto = EdhocCryptoProvider::new("");
         let mut responder =
-            EdhocResponder::new(state, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+            EdhocResponder::new(state, &crypto, R, G_I, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
         let error = responder.process_message_1(&MESSAGE_1_TV);
 
@@ -543,8 +549,10 @@ mod test {
     #[test]
     fn test_handshake() {
         let state_initiator: EdhocState = Default::default();
+        let crypto = EdhocCryptoProvider::new("");
         let mut initiator = EdhocInitiator::new(
             state_initiator,
+            &crypto,
             I,
             G_R,
             ID_CRED_I,
@@ -555,6 +563,7 @@ mod test {
         let state_responder: EdhocState = Default::default();
         let mut responder = EdhocResponder::new(
             state_responder,
+            &crypto,
             R,
             G_I,
             ID_CRED_I,
