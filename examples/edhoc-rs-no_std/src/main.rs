@@ -15,7 +15,7 @@ use cortex_m_semihosting::{
 
 use panic_semihosting as _;
 
-use edhoc_rs::{EDHOCError, EdhocInitiator, EdhocState};
+use edhoc_rs::{EDHOCError, EdhocCryptoProvider, EdhocInitiator, EdhocState};
 
 #[entry]
 fn main() -> ! {
@@ -42,24 +42,27 @@ fn main() -> ! {
     const MESSAGE_1_TV: [u8; 37] =
         hex!("030258208af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b637");
 
-    fn test_new_initiator() {
+    let crypto = EdhocCryptoProvider::new("");
+
+    fn test_new_initiator(crypto: &EdhocCryptoProvider) {
         let state: EdhocState = Default::default();
-        let _initiator = EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+        let _initiator =
+            EdhocInitiator::new(state, crypto, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
     }
 
-    test_new_initiator();
+    test_new_initiator(&crypto);
 
-    fn test_prepare_message_1() {
+    fn test_prepare_message_1(crypto: &EdhocCryptoProvider) {
         let state: EdhocState = Default::default();
         let mut initiator =
-            EdhocInitiator::new(state, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
+            EdhocInitiator::new(state, crypto, I, G_R, ID_CRED_I, CRED_I, ID_CRED_R, CRED_R);
 
         let (error, message_1) = initiator.prepare_message_1();
         assert!(error == EDHOCError::Success);
         assert_eq!(message_1, MESSAGE_1_TV);
     }
 
-    test_prepare_message_1();
+    test_prepare_message_1(&crypto);
 
     // exit via semihosting call
     debug::exit(EXIT_SUCCESS);
