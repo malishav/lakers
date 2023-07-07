@@ -331,7 +331,7 @@ mod hacspec {
     array!(BytesEncStructureLen, ENC_STRUCTURE_LEN, U8);
 
     pub const C_I: U8 = U8(0x37u8);
-    pub const C_R: U8 = U8(0x00u8);
+    pub const C_R: U8 = U8(0x27u8);
 
     // Currently only suite number 2 is supported,
     // which corresponds to the array 10, -16, 8, 1, -7, 10, -16,
