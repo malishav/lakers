@@ -67,7 +67,7 @@ pub fn r_process_message_1(
             if method.declassify() == EDHOC_METHOD {
                 // Step 2: verify that the selected cipher suite is supported
                 if suites_i[suites_i_len - 1].declassify()
-                    == EDHOC_SUPPORTED_SUITES[0u8].declassify()
+                    == EDHOC_SUPPORTED_SUITES[EDHOC_SUPPORTED_SUITES.len() - 1].declassify()
                 {
                     // Step 3: If EAD is present make it available to the application
                     let ead_success = if let Some(ead_1) = ead_1 {
