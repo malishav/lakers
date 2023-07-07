@@ -115,7 +115,7 @@ mod common {
 
     pub const ID_CRED_LEN: usize = 4;
     pub const SUITES_LEN: usize = 9;
-    pub const SUPPORTED_SUITES_LEN: usize = 1;
+    pub const SUPPORTED_SUITES_LEN: usize = 2;
     pub const EDHOC_METHOD: u8 = 3u8; // stat-stat is the only supported method
     pub const P256_ELEM_LEN: usize = 32;
     pub const SHA256_DIGEST_LEN: usize = 32;
@@ -344,7 +344,7 @@ mod hacspec {
     // - AES-CCM-16-64-128 | Application AEAD algorithm
     // - SHA-256 | Application hash algorithm
     pub const EDHOC_SUPPORTED_SUITES: BytesSupportedSuites =
-        BytesSupportedSuites(secret_bytes!([0x2u8]));
+        BytesSupportedSuites(secret_bytes!([0x06u8, 0x02u8]));
     pub const EDHOC_SUITES: BytesSuites = BytesSuites(secret_bytes!([0, 1, 2, 3, 4, 5, 6, 24, 25])); // all but private cipher suites
 
     #[repr(C)]
