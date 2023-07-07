@@ -140,7 +140,13 @@ mod hacspec {
             let r = BytesP256ElemLen::from_hex(self.r);
 
             // Generate ephemeral key pair
-            let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
+//            let (y, g_y) = edhoc_crypto::p256_generate_key_pair();
+
+            const G_Y_TV: &str = "419701d7f00a26c2dc587a36dd752549f33763c893422c8ea0f955a13a4ff5d5";
+            const Y_TV: &str = "e2f4126777205e853b437d6eaca1e1f753cdcc3e2c69fa884b0a1a640977e418";
+
+            let y = BytesP256ElemLen::from_hex(&Y_TV);
+            let g_y = BytesP256ElemLen::from_hex(&G_Y_TV);
 
             match r_prepare_message_2(self.state, &id_cred_r, &cred_r, cred_r_len, &r, y, g_y) {
                 Ok((state, message_2, c_r)) => {
@@ -236,7 +242,14 @@ mod hacspec {
             self: &mut HacspecEdhocInitiator<'a>,
         ) -> Result<EdhocMessageBuffer, EDHOCError> {
             // Generate ephemeral key pair
-            let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
+            //let (x, g_x) = edhoc_crypto::p256_generate_key_pair();
+
+            const G_X_TV: &str = "8af6f430ebe18d34184017a9a11bf511c8dff8f834730b96c1b7c8dbca2fc3b6";
+            const X_TV: &str = "368ec1f69aeb659ba37d5a8d45b21bdc0299dceaa8ef235f3ca42ce3530f9525";
+
+
+            let x = BytesP256ElemLen::from_hex(&X_TV);
+            let g_x = BytesP256ElemLen::from_hex(&G_X_TV);
 
             match edhoc_hacspec::i_prepare_message_1(self.state, x, g_x) {
                 Ok((state, message_1)) => {
