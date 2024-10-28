@@ -21,14 +21,14 @@ fn main() -> ! {
     info!("Message: {:?}", message);
 
     let p = pac::Peripherals::take().unwrap();
-    let hash = p.cc_hash;
+    let cc_hash = p.cc_hash;
     let cc_host_rgf = p.cc_host_rgf;
     let cc_ctl = p.cc_ctl;
     let cc_misc = p.cc_misc;
     let cc_din = p.cc_din;
 
     // Enable CRYPTOCELL and the necessary clocks
-    p.cryptocell.enable();
+    p.cryptocell.enable().write(|w| w.enable().set_bit());
 
     cc_misc.hash_clk().write(|w| w.enable().set_bit());
     cc_misc.dma_clk().write(|w| w.enable().set_bit());
@@ -42,23 +42,23 @@ fn main() -> ! {
     cc_host_rgf.icr().write(|w| unsafe { w.bits(0xFFFFFFFF) });
 
     // Set the HASH mode to SHA256
-    hash.hash_control().write(|w| w.mode().sha256());
+    cc_hash.hash_control().write(|w| w.mode().sha256());
 
     // Enable automatic hardware padding
-    hash.hash_pad().write(|w| w.enable().enable());
-    hash.hash_pad_auto().write(|w| w.hwpad().enable());
+    cc_hash.hash_pad().write(|w| w.enable().enable());
+    cc_hash.hash_pad_auto().write(|w| w.hwpad().enable());
 
     info!("HASH engine configured.");
 
     // Write the initial values for SHA256
-    hash.hash_h(0).write(|w| unsafe { w.bits(0x6A09E667) });
-    hash.hash_h(1).write(|w| unsafe { w.bits(0xBB67AE85) });
-    hash.hash_h(2).write(|w| unsafe { w.bits(0x3C6EF372) });
-    hash.hash_h(3).write(|w| unsafe { w.bits(0xA54FF53A) });
-    hash.hash_h(4).write(|w| unsafe { w.bits(0x510E527F) });
-    hash.hash_h(5).write(|w| unsafe { w.bits(0x9B05688C) });
-    hash.hash_h(6).write(|w| unsafe { w.bits(0x1F83D9AB) });
-    hash.hash_h(7).write(|w| unsafe { w.bits(0x5BE0CD19) });
+    cc_hash.hash_h(0).write(|w| unsafe { w.bits(0x6A09E667) });
+    cc_hash.hash_h(1).write(|w| unsafe { w.bits(0xBB67AE85) });
+    cc_hash.hash_h(2).write(|w| unsafe { w.bits(0x3C6EF372) });
+    cc_hash.hash_h(3).write(|w| unsafe { w.bits(0xA54FF53A) });
+    cc_hash.hash_h(4).write(|w| unsafe { w.bits(0x510E527F) });
+    cc_hash.hash_h(5).write(|w| unsafe { w.bits(0x9B05688C) });
+    cc_hash.hash_h(6).write(|w| unsafe { w.bits(0x1F83D9AB) });
+    cc_hash.hash_h(7).write(|w| unsafe { w.bits(0x5BE0CD19) });
 
     info!("Initial values written.");
 
@@ -79,7 +79,7 @@ fn main() -> ! {
     // Read the resulting hash from HASH_H registers
     let mut hash_regs = [0u32; 8];
     for (i, reg) in hash_regs.iter_mut().enumerate() {
-        *reg = hash.hash_h(i).read().bits();
+        *reg = cc_hash.hash_h(i).read().bits();
     }
 
     let hash_bytes = convert_array(&hash_regs);

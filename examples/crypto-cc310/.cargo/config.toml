@@ -7,4 +7,4 @@ rustflags = ["-Clink-args=-Map=/tmp/lakers-cc310.map"]
 target = "thumbv7em-none-eabihf"
 
 [env]
-DEFMT_LOG = "trace"
+DEFMT_LOG = "error"

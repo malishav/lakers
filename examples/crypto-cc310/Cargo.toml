@@ -20,3 +20,9 @@ nrf52840-pac = {package = "nrf52840-pac", git="https://github.com/geonnave/nrf-p
 
 [features]
 default = [  ]
+
+[profile.release]
+opt-level = 3        # Maximum optimizations for release builds
+debug = true         # Include debug information for release as well (useful for profiling)
+overflow-checks = true
+debug-assertions = false
