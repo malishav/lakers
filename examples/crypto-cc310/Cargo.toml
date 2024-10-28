@@ -5,30 +5,36 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-# lakers = { package = "lakers", path = "../../lib", features = [ "defmt" ] }
-# lakers-ead-authz = { path = "../../ead/lakers-ead-authz", optional = true }
-# lakers-crypto = { path = "../../crypto", default-features = false }
-# hexlit = "0.5.3"
-
-# # depend on an allocator
-# embedded-alloc = "0.5.0"
-
 # cortex-m specifics
 cortex-m = { version = "0.7.6", features = ["critical-section-single-core"]}
 cortex-m-rt = "0.7.1"
 cortex-m-semihosting = "0.5.0"
 panic-semihosting = { version = "0.6.0", features = ["exit"] }
 
+# logging
 defmt = "0.3"
 defmt-rtt = "0.4"
 
-[features]
-default = [ "rtt" ]
-rtt = [ ]
+# forked pac with the latest cryptocell definitions
+#nrf52840-pac = {package = "nrf52840-pac", git="https://github.com/geonnave/nrf-pacs.git", branch="cryptocell310", features = ["critical-section"]}
 
-# default = [ "rtt", "crypto-cryptocell310", "ead-none" ]
-# rtt = [ ]
-# crypto-psa = [ "lakers-crypto/psa-baremetal" ]
-# crypto-cryptocell310 = [ "lakers-crypto/cryptocell310" ]
-# ead-none = [ ]
-# ead-authz = [ "lakers-ead-authz" ]
+[features]
+default = [  ]
+
+[profile.release]
+opt-level = 0        # Maximum optimizations for release builds
+debug = true         # Include debug information for release as well (useful for profiling)
+overflow-checks = true
+debug-assertions = false
+
+[profile.dev]
+opt-level = 0
+debug = true
+strip = "none"
+debug-assertions = true
+overflow-checks = true
+lto = false
+panic = 'unwind'
+incremental = true
+codegen-units = 256
+rpath = false
