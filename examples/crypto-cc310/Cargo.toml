@@ -1,0 +1,34 @@
+[package]
+name = "crypto-cc310"
+authors = ["Geovane Fedrecheski <geovane.fedrecheski@inria.fr>"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# lakers = { package = "lakers", path = "../../lib", features = [ "defmt" ] }
+# lakers-ead-authz = { path = "../../ead/lakers-ead-authz", optional = true }
+# lakers-crypto = { path = "../../crypto", default-features = false }
+# hexlit = "0.5.3"
+
+# # depend on an allocator
+# embedded-alloc = "0.5.0"
+
+# cortex-m specifics
+cortex-m = { version = "0.7.6", features = ["critical-section-single-core"]}
+cortex-m-rt = "0.7.1"
+cortex-m-semihosting = "0.5.0"
+panic-semihosting = { version = "0.6.0", features = ["exit"] }
+
+defmt = "0.3"
+defmt-rtt = "0.4"
+
+[features]
+default = [ "rtt" ]
+rtt = [ ]
+
+# default = [ "rtt", "crypto-cryptocell310", "ead-none" ]
+# rtt = [ ]
+# crypto-psa = [ "lakers-crypto/psa-baremetal" ]
+# crypto-cryptocell310 = [ "lakers-crypto/cryptocell310" ]
+# ead-none = [ ]
+# ead-authz = [ "lakers-ead-authz" ]
