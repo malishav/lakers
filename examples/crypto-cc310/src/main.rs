@@ -10,15 +10,21 @@ use panic_semihosting as _;
 pub use nrf52840_pac as pac;
 
 const SHA256_DIGEST_LEN: usize = 32;
-pub const BUFFER_LEN: usize = 16;
+pub const BUFFER_LEN: usize = 3;
+// pub const BUFFER_LEN: usize = 16;
+// pub const BUFFER_LEN: usize = 64;
 pub type BytesMaxBuffer = [u8; BUFFER_LEN];
+
+#[no_mangle]
+#[link_section = ".data"]
+// static MESSAGE: BytesMaxBuffer = [1; BUFFER_LEN];
+static MESSAGE: BytesMaxBuffer = *b"abc";
 
 #[entry]
 fn main() -> ! {
     info!("Running.");
 
-    let message: BytesMaxBuffer = *b"0123456789ABCDEF";
-    info!("Message: {:?}", message);
+    info!("Message: {:?}", MESSAGE);
 
     let p = pac::Peripherals::take().unwrap();
     let cc_hash = p.cc_hash;
@@ -62,16 +68,23 @@ fn main() -> ! {
 
     info!("Initial values written.");
 
+    info!(
+        "Writing address {:#X} to SRC_MEM_ADDR",
+        MESSAGE.as_ptr() as u32
+    );
+
     // Set the input source for DMA
+    // cc_din.src_mem_addr().write(|w| unsafe { w.addr().bits(MESSAGE.as_ptr() as u32) });
     cc_din
         .src_mem_addr()
-        .write(|w| unsafe { w.addr().bits(message.as_ptr() as u32) });
+        .write(|w| unsafe { w.addr().bits(0x20000000 as u32) });
     cc_din
         .src_mem_size()
-        .write(|w| unsafe { w.bits(message.len() as u32) });
+        .write(|w| unsafe { w.bits(BUFFER_LEN as u32) });
 
     info!("Waiting for the DMA transfer to complete...");
     while cc_host_rgf.irr().read().mem_to_din_int().bit_is_clear() {}
+    info!("DMA transfer complete.");
 
     info!("Waiting for the HASH engine to be idle again...");
     while cc_ctl.hash_busy().read().bits() != 0 {}
