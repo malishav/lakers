@@ -10,15 +10,12 @@ use panic_semihosting as _;
 pub use nrf52840_pac as pac;
 
 const SHA256_DIGEST_LEN: usize = 32;
-pub const BUFFER_LEN: usize = 3;
-// pub const BUFFER_LEN: usize = 16;
-// pub const BUFFER_LEN: usize = 64;
-pub type BytesMaxBuffer = [u8; BUFFER_LEN];
 
+const MESSAGE_LEN: usize = 128;
 #[no_mangle]
 #[link_section = ".data"]
-// static MESSAGE: BytesMaxBuffer = [1; BUFFER_LEN];
-static MESSAGE: BytesMaxBuffer = *b"abc";
+// static MESSAGE: [u8; MESSAGE_LEN] = [0xfa; MESSAGE_LEN];
+static MESSAGE: [u8; 3] = *b"abc";
 
 #[entry]
 fn main() -> ! {
@@ -47,12 +44,14 @@ fn main() -> ! {
     // Clear all pending interrupts
     cc_host_rgf.icr().write(|w| unsafe { w.bits(0xFFFFFFFF) });
 
+    // Configure HASH as cryptographic flow
+    unsafe {
+        let hash_ctl_addr = (0x5002B000 + 0x900) as *mut u32;
+        core::ptr::write_volatile(hash_ctl_addr, 7); // HashActive
+    }
+
     // Set the HASH mode to SHA256
     cc_hash.hash_control().write(|w| w.mode().sha256());
-
-    // Enable automatic hardware padding
-    cc_hash.hash_pad().write(|w| w.enable().enable());
-    cc_hash.hash_pad_auto().write(|w| w.hwpad().enable());
 
     info!("HASH engine configured.");
 
@@ -74,13 +73,12 @@ fn main() -> ! {
     );
 
     // Set the input source for DMA
-    // cc_din.src_mem_addr().write(|w| unsafe { w.addr().bits(MESSAGE.as_ptr() as u32) });
     cc_din
         .src_mem_addr()
-        .write(|w| unsafe { w.addr().bits(0x20000000 as u32) });
+        .write(|w| unsafe { w.addr().bits(MESSAGE.as_ptr() as u32) });
     cc_din
         .src_mem_size()
-        .write(|w| unsafe { w.bits(BUFFER_LEN as u32) });
+        .write(|w| unsafe { w.bits(MESSAGE.len() as u32) });
 
     info!("Waiting for the DMA transfer to complete...");
     while cc_host_rgf.irr().read().mem_to_din_int().bit_is_clear() {}
