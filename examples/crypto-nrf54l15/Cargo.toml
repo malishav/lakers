@@ -1,5 +1,5 @@
 [package]
-name = "crypto-cc310"
+name = "crypto-nrf54l15"
 authors = ["Geovane Fedrecheski <geovane.fedrecheski@inria.fr>"]
 version = "0.1.0"
 edition = "2021"

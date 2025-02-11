@@ -10,7 +10,7 @@ members = [
   "examples/coap",
   "examples/lakers-no_std",
   "examples/lakers-nrf52840",
-  "examples/crypto-cc310",
+  "examples/crypto-nrf54l15",
   "lakers-c",
   "lakers-python",
 ]
