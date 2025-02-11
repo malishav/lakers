@@ -16,7 +16,7 @@ defmt = "0.3"
 defmt-rtt = "0.4"
 
 # forked pac with the latest cryptocell definitions
-#nrf52840-pac = {package = "nrf52840-pac", git="https://github.com/geonnave/nrf-pacs.git", branch="cryptocell310", features = ["critical-section"]}
+nrf54l15-app-pac = {package = "nrf54l15-app-pac", git="https://github.com/malishav/nrf-pacs.git", branch="nrf54l15", features = ["critical-section"]}
 
 [features]
 default = [  ]
